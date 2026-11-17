@@ -20,7 +20,7 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,6 +31,14 @@ jobs:
           node-version: 22
           cache: npm
 
+      # The Cypress binary is downloaded by the "prepare" script during npm ci;
+      # caching it avoids re-downloading ~200 MB on every run
+      - name: Cache Cypress binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/Cypress
+          key: cypress-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install
         run: npm ci
 
@@ -40,9 +48,36 @@ jobs:
       - name: Type check
         run: npm run type-check --if-present
 
-      - name: Unit tests
-        run: npm test --if-present
+      - name: Unit tests (Cypress component)
+        uses: cypress-io/github-action@v6
+        with:
+          install: false
+          component: true
 
-      # Makes sure the production build still works
+      # Makes sure the production build still works (and produces dist/ for the e2e tests)
       - name: Build
         run: npm run build
+
+      - name: E2E tests (Gherkin)
+        uses: cypress-io/github-action@v6
+        with:
+          install: false
+          start: npm run preview
+          wait-on: 'http://localhost:4173'
+          wait-on-timeout: 60
+
+      - name: Upload Cucumber reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cucumber-reports
+          path: cypress/reports/
+          if-no-files-found: ignore
+
+      - name: Upload Cypress screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-screenshots
+          path: cypress/screenshots/
+          if-no-files-found: ignore
