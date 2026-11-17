@@ -46,3 +46,29 @@ npm run build
 ```sh
 npm run lint
 ```
+
+### End-to-end tests with Gherkin (Cypress)
+
+Scenarios are written in Gherkin (`.feature` files) and run by Cypress through
+[`@badeball/cypress-cucumber-preprocessor`](https://github.com/badeball/cypress-cucumber-preprocessor).
+
+```
+cypress/
+├── e2e/*.feature                    # scenarios (Given / When / Then)
+└── support/step_definitions/*.ts    # step implementations, shared by all features
+```
+
+```sh
+npm run test:e2e        # build preview + run every feature headless
+npm run test:e2e:dev    # interactive Cypress runner
+```
+
+Run only some scenarios with tags (e.g. `@smoke` above a `Feature:` or `Scenario:`):
+
+```sh
+npx cypress run --e2e --env tags=@smoke
+```
+
+Reports are written to `cypress/reports/` (HTML and JSON). Reusable steps live in
+`cypress/support/step_definitions/common.steps.ts`; add a new `*.steps.ts` file there for steps
+specific to a feature.
