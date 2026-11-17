@@ -1,0 +1,7 @@
+services:
+  # Production build served by nginx
+  web:
+    image: ghcr.io/diiagecucdb/di2-p2p3-e2-ocid:latest
+    ports:
+      - '8080:80'
+    restart: unless-stopped

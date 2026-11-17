@@ -1,0 +1,93 @@
+name: Build & Push Docker Image
+
+on:
+  # Auto: every push to main -> semantic-release decides the version
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+  # Manual: skips versioning, tags image with the branch name
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+permissions:
+  contents: write # create git tag + GitHub release
+  issues: write # semantic-release comments on issues
+  pull-requests: write # semantic-release comments on PRs
+  packages: write # push to GHCR
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ---- Versioning (push events only) ----
+      # Config lives in .releaserc.json
+      #   fix: ...                       -> patch
+      #   feat: ...                      -> minor
+      #   "BREAKING CHANGE:" in footer   -> major
+      #   chore:/docs:/ci:/... -> no release (image is not built)
+      - name: Semantic release
+        id: semantic
+        if: github.event_name == 'push'
+        uses: cycjimmy/semantic-release-action@v4
+        with:
+          semantic_version: 24
+          extra_plugins: |
+            @semantic-release/changelog
+            @semantic-release/git
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ---- Decide image tags (empty = nothing to build) ----
+      - name: Resolve image tags
+        id: tags
+        run: |
+          IMAGE="${REGISTRY}/${GITHUB_REPOSITORY,,}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual run: no versioning, branch name as tag ("/" is invalid in tags)
+            BRANCH="${GITHUB_REF_NAME//\//-}"
+            echo "tags=${IMAGE}:${BRANCH}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ steps.semantic.outputs.new_release_published }}" = "true" ]; then
+            VERSION="${{ steps.semantic.outputs.new_release_version }}"
+            if [[ "$VERSION" == *-* ]]; then
+              # Prerelease (e.g. 1.1.0-init.1): never move "latest"
+              echo "tags=${IMAGE}:${VERSION}" >> "$GITHUB_OUTPUT"
+            else
+              echo "tags=${IMAGE}:${VERSION}"$'\n'"${IMAGE}:latest" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "No release-worthy commits, skipping image build."
+            echo "tags=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.tags.outputs.tags != ''
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: steps.tags.outputs.tags != ''
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push
+        if: steps.tags.outputs.tags != ''
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: production
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VITE_API_URL=${{ vars.VITE_API_URL }}
