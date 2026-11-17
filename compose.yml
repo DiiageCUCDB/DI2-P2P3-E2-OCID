@@ -1,0 +1,12 @@
+services:
+  # Production build served by nginx
+  web:
+    image: ${IMAGE_NAME:-vue-app}:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      target: production
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+    ports:
+      - '8080:80'
+    restart: unless-stopped
