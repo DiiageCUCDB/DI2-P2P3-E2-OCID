@@ -1,0 +1,48 @@
+name: Test
+
+on:
+  pull_request:
+    branches: [main, dev]
+  # Also run on main so a broken merge is caught right away
+  push:
+    branches: [main, dev]
+    paths-ignore:
+      - '**.md'
+
+permissions:
+  contents: read
+
+# Cancel the old run when a new commit is pushed to the same PR
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint --if-present
+
+      - name: Type check
+        run: npm run type-check --if-present
+
+      - name: Unit tests
+        run: npm test --if-present
+
+      # Makes sure the production build still works
+      - name: Build
+        run: npm run build
