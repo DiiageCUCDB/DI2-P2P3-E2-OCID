@@ -39,6 +39,9 @@ jobs:
         uses: cycjimmy/semantic-release-action@v4
         with:
           semantic_version: 24
+          extra_plugins: |
+            @semantic-release/changelog
+            @semantic-release/git
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -53,7 +56,12 @@ jobs:
             echo "tags=${IMAGE}:${BRANCH}" >> "$GITHUB_OUTPUT"
           elif [ "${{ steps.semantic.outputs.new_release_published }}" = "true" ]; then
             VERSION="${{ steps.semantic.outputs.new_release_version }}"
-            echo "tags=${IMAGE}:${VERSION}"$'\n'"${IMAGE}:latest" >> "$GITHUB_OUTPUT"
+            if [[ "$VERSION" == *-* ]]; then
+              # Prerelease (e.g. 1.1.0-init.1): never move "latest"
+              echo "tags=${IMAGE}:${VERSION}" >> "$GITHUB_OUTPUT"
+            else
+              echo "tags=${IMAGE}:${VERSION}"$'\n'"${IMAGE}:latest" >> "$GITHUB_OUTPUT"
+            fi
           else
             echo "No release-worthy commits, skipping image build."
             echo "tags=" >> "$GITHUB_OUTPUT"
