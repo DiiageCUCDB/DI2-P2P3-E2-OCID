@@ -3,7 +3,7 @@ name: Build & Push Docker Image
 on:
   # Auto: every push to main -> semantic-release decides the version
   push:
-    branches: [main, feat/init]
+    branches: [main]
     paths-ignore:
       - '**.md'
   # Manual: skips versioning, tags image with the branch name
